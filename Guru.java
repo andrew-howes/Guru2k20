@@ -5,6 +5,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 
 public class Guru {
@@ -16,8 +17,10 @@ public class Guru {
 	static String[] results;
 	static String[][] possibleResults;
 	static File neighbors; 
+	static File allDifferences; 
 	static int nextMatch;
-	
+	static File deadFile;
+	static ArrayList<String> dead;
 	
 	//main execution thread - initializes list of brackets, starts output. 
 	//input argument (optional): how many matches to check (int), defaults to 1
@@ -26,14 +29,16 @@ public class Guru {
 		nextMatch = 0;
 		allPicks = new ArrayList<String[]>();
 		try {
+			deadFile = new File("deadEntrants.txt");
+			bringOutYourDead();
 			//changed default bracket file to allbrackets.txt
 	        File inFile = new File("allbrackets.txt");
 	        
 	        neighbors = new File("neighbors.txt");
+	        allDifferences = new File("allDifferences.csv");
 	        BufferedReader in = new BufferedReader(new FileReader(inFile));
 	        String line;
 	        ArrayList<String> players = new ArrayList<String>();
-	        int count = 0;
 	        while ((line = in.readLine()) != null) {
 	            String[] picks = line.split(",", -1);
 	            //master results bracket
@@ -44,13 +49,19 @@ public class Guru {
 	            else if(picks[0].equals("POSSIBLE"))
 	            {
 	            	processPossibleResults(picks);
+	            	
 	            }else{
+	            	//skip this player if they've been eliminated.
+	            	if(dead.contains(picks[0]))
+	            	{
+	            		continue;
+	            	}
 	            	players.add(picks[0]);
 	            	processPlayer(picks);
-	            	count++;
 	            }
 	        }
-	        entrants = new String[count];
+			fillPossiblesWithResults();
+	        entrants = new String[players.size()];
 	        players.toArray(entrants);
 	        in.close();
 	    } catch (IOException e) {
@@ -58,14 +69,16 @@ public class Guru {
 	    }
 		scores = calculateScores(results);
 		System.out.println("Current Match: " + nextMatch + " Remaining Brackets: " + entrants.length);
-		outputClosestBrackets();
+		outputClosestBrackets(true);
+		//outputAllDifferences();
 		//How many matches to check - default is 1
-//		if(args.length <= 0)
-//			checkNext(1,"");
-//		else
-//			checkNext(Integer.parseInt(args[0]),"");
+		if(args.length <= 0)
+			checkNext(1,"");
+		else
+			checkNext(Integer.parseInt(args[0]),"");
 		
-		calculateScenarios("");
+		
+		//calculateScenarios("");
 	}
 
 	//simulates the next 'i' matches to find eliminations
@@ -82,7 +95,7 @@ public class Guru {
 			{
 				nextMatch++;
 				neighbors = new File(filename+poss+".txt");
-				outputClosestBrackets();
+				outputClosestBrackets(false);
 				nextMatch--;
 			}else{
 				nextMatch++;
@@ -106,7 +119,7 @@ public class Guru {
 			results[nextMatch] = poss;
 			scores = calculateScores(results);
 			//if the current match is the final, print the winner(s), else continue to iterate.
-			if(nextMatch == 149)
+			if(nextMatch == 126)
 			{
 				String newScene = scene+poss;
 				outputWinner(newScene);
@@ -211,7 +224,7 @@ public class Guru {
 	}
 	
 	//output the closest brackets for each entrant, and prints the eliminations given a specific result.
-	public static void outputClosestBrackets()
+	public static void outputClosestBrackets(boolean removeDead)
 	{
 		try {
 			FileWriter writer = new FileWriter(neighbors);
@@ -280,9 +293,14 @@ public class Guru {
 						if((scores[i]-scores[player]) > comparisons[i][2])
 						{
 							out += "Should be dead\n";
+							
 							if(!hasPrinted){
 								System.out.print(entrants[player] + " by " + entrants[i]);
 								hasPrinted = true;
+								if(removeDead)
+								{
+									dead.add(entrants[player]);
+								}
 							}else
 								System.out.print(", " + entrants[i]);
 						}
@@ -294,12 +312,56 @@ public class Guru {
 			System.out.println();
 			writer.write("</span>\n");
 			writer.close();
+			
+			//remove players that are dead from consideration (first-run only)
+			if(removeDead)
+			{
+				writeDead();
+			}
+			
+			
 		} catch (IOException e) {
 			System.out.println("problem with output");
 			System.exit(1);
 		}
 		//System.out.println("Done getting differences");
 	}
+	
+	//output the closest brackets for each entrant, and prints the eliminations given a specific result.
+		public static void outputAllDifferences()
+		{
+			try {
+				FileWriter writer = new FileWriter(allDifferences);
+				
+				int[][] comparisons;
+				
+				writer.write("Player");
+				for(int player = 0; player < entrants.length; player++)
+				{
+					writer.write(","+entrants[player]);
+				}
+				writer.write("\n");
+				
+
+				for(int player = 0; player < entrants.length; player++)
+				{
+					writer.write(entrants[player]);
+					comparisons = new int[entrants.length][3];
+					for(int second = 0; second < entrants.length; second++)
+					{
+						comparisons[second] = getDifferenceScore(player, second);
+						writer.write(","+comparisons[second][1]);
+					}
+					writer.write("\n");
+				}
+				System.out.println();
+				writer.close();
+			} catch (IOException e) {
+				System.out.println("problem with output");
+				System.exit(1);
+			}
+			//System.out.println("Done getting differences");
+		}
 	
 	//returns the list of match numbers that have different picks in the given brackets. 
 	public static int[] getDifferentMatches(int first, int second)
@@ -410,11 +472,11 @@ public class Guru {
 	//reads in the list of possible results for the first round (the participants in each match)
 		public static void processPossibleResults(String[] possible)
 		{
-			possibleResults = new String[150][0];
+			possibleResults = new String[127][0];
 			String[] parts;
-			for(int i = 0; i < 150; i++)
+			for(int i = 0; i < 127; i++)
 			{
-				parts = possible[i+1].split("; ");
+				parts = possible[i+1].split(";");
 				possibleResults[i] = parts;
 			}
 		}
@@ -422,7 +484,7 @@ public class Guru {
 		//reads the actual results that have occurred so far.
 		public static void processResults(String[] picks)
 		{
-			results = new String[150];
+			results = new String[127];
 			results = Arrays.copyOfRange(picks, 1, picks.length);
 			for(int i = 1; i < results.length; i++)
 			{
@@ -478,5 +540,46 @@ public class Guru {
 				}
 			}
 			return scores;
+		}
+		public static void bringOutYourDead()
+		{
+			try {
+				BufferedReader in = new BufferedReader(new FileReader(deadFile));
+		        String line;
+		        dead = new ArrayList<String>();
+		        while ((line = in.readLine()) != null) {
+		            String player = line;
+		            dead.add(player);
+		        }	        
+		        in.close();
+			} catch (IOException e) {
+		        System.out.println("File Read Error: " + e.getMessage());
+		    }
+		}
+		
+		public static void writeDead()
+		{
+			
+			List<String> players = new ArrayList<String>(Arrays.asList(entrants));
+			for(String deadGuy : dead)
+			{
+				if(players.contains(deadGuy))
+				{
+					allPicks.remove(players.indexOf(deadGuy));
+					players.remove(deadGuy);
+				}
+				entrants = new String[players.size()];
+		        players.toArray(entrants);
+			}
+			try {
+				FileWriter ghostwriter = new FileWriter(deadFile);
+				for(String deadGuy : dead)
+				{
+					ghostwriter.write(deadGuy + "\n");
+				}
+				ghostwriter.close();
+			}catch (IOException e) {
+		        System.out.println("File Read Error: " + e.getMessage());
+		    }
 		}
 }

@@ -26,6 +26,8 @@ public class GuruElimChecker {
 	static int[] wrongMatches;
 	static String winningScenario;
 	static FileWriter writer;
+	static File deadFile;
+	static ArrayList<String> dead;
 	
 	
 	public GuruElimChecker(int[] INvalues,String[] INentrants, ArrayList<String[]> INallPicks, String[] INresults, String[][] INpossibleResults,
@@ -48,6 +50,9 @@ public class GuruElimChecker {
 		nextMatch = 0;
 		allPicks = new ArrayList<String[]>();
 		try {
+			deadFile = new File("dead.txt");
+			bringOutYourDead();
+			
 	        File inFile = new File("allbrackets.txt");
 	        
 	        //index to check, starts at 0 and iterates through everything.
@@ -68,11 +73,12 @@ public class GuruElimChecker {
 	            {
 	            	processPossibleResults(picks);
 	            }else{
+	            	//skip this player if they've been eliminated.
+	            	if(dead.contains(picks[0]))
+	            	{
+	            		continue;
+	            	}
 	            	players.add(picks[0]);
-//	            	if(picks[0].equals(player))
-//	            	{
-//	            		checkIndex = count;
-//	            	}
 	            	processPlayer(picks);
 	            	count++;
 	            }
@@ -90,7 +96,7 @@ public class GuruElimChecker {
 			else
 				checkNext(Integer.parseInt(args[0]),"Spotcheck_");
 		
-		calculateScenarios("");
+		//calculateScenarios("");
 	}
 	
 	//check the next _i_ results. This is recursive, branching until i=1, and resulting in 2^i executions.
@@ -253,6 +259,7 @@ public class GuruElimChecker {
 	}
 	
 	//individual player checker - iterates through _wrongMatches_, and determines if 
+	//the player has a winning combination
 	public static boolean checkPlayerHelper(int i, String scenario)
 	{
 		boolean result = false;
@@ -349,8 +356,8 @@ public class GuruElimChecker {
 	{
 		String[] result;
 		int start;
-//		if(!possibleResults[match][0].equals(""))
-//			return possibleResults[match];
+		if(!possibleResults[match][0].equals(""))
+			return possibleResults[match];
 		ArrayList<String> temp = new ArrayList<String>();
 		if(match < 96)
 		{
@@ -479,7 +486,7 @@ public class GuruElimChecker {
 		String[] parts;
 		for(int i = 0; i < 127; i++)
 		{
-			parts = possible[i+1].split("; ");
+			parts = possible[i+1].split(";");
 			possibleResults[i] = parts;
 		}
 	}
@@ -543,5 +550,22 @@ public class GuruElimChecker {
 			}
 		}
 		return scores;
+	}
+	
+	
+	public static void bringOutYourDead()
+	{
+		try {
+			BufferedReader in = new BufferedReader(new FileReader(deadFile));
+	        String line;
+	        dead = new ArrayList<String>();
+	        while ((line = in.readLine()) != null) {
+	            String player = line;
+	            dead.add(player);
+	        }	        
+	        in.close();
+		} catch (IOException e) {
+	        System.out.println("File Read Error: " + e.getMessage());
+	    }
 	}
 }
